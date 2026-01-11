@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 适配手机屏幕，微信打开不会变形 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>送给蛋蛋同学</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; }
+        /* 倒计时文字样式 */
+        .countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 80px;
+            font-weight: bold;
+            font-family: "SimHei", Arial;
+        }
+        .title {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 30px;
+            font-family: "SimHei", Arial;
+        }
+    </style>
+</head>
+<body>
+    <!-- 初始文字和倒计时容器 -->
+    <div class="title" id="title">送给蛋蛋同学</div>
+    <div class="countdown" id="countdown"></div>
+    <!-- 绘制爱心的画布 -->
+    <canvas id="canvas"></canvas>
+
+    <script>
+        // 全局状态：0=初始文字，1=倒计时，2=粒子汇聚，3=爱心固定
+        let stage = 0;
+        let countdownNum = 3;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        // 适配手机屏幕大小
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // 粒子数量（8000个，爱心饱满）
+        const particleNum = 8000;
+        const particles = [];
+
+        // 粒子类：复刻Python的粒子逻辑
+        class Particle {
+            constructor() {
+                // 爱心基准参数（和Python一致）
+                this.t = Math.random() * Math.PI * 2;
+                this.r = Math.random() * 1.2; // 爱心主体范围
+                this.size = Math.random() * 2 + 1; // 粒子大小1-3像素
+                this.color = Math.random() > 0.1 ? "#ff1493" : "#ff69b4"; // 粉色系
+
+                // 旋转分散参数
+                this.rotateAngle = Math.random() * Math.PI * 2;
+                this.rotateSpeed = Math.random() * 0.02 + 0.01;
+                this.radius = Math.random() * 100 + 50; // 旋转半径50-150
+
+                // 汇聚进度
+                this.progress = 0;
+                this.speed = 0.03; // 汇聚速度
+            }
+
+            // 计算旋转分散位置（复刻Python的get_rotate_pos）
+            getRotatePos() {
+                this.rotateAngle += this.rotateSpeed;
+                const x = canvas.width / 2 + Math.cos(this.rotateAngle) * this.radius;
+                const y = canvas.height / 2 + Math.sin(this.rotateAngle) * this.radius;
+                return { x, y };
+            }
+
+            // 计算爱心固定位置（复刻Python的get_love_pos）
+            getLovePos() {
+                const t = this.t;
+                const xHeart = 16 * Math.pow(Math.sin(t), 3) * this.r * 8; // 缩放适配手机
+                const yHeart = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * this.r * 8;
+                const x = canvas.width / 2 + xHeart;
+                const y = canvas.height / 2 - yHeart; // 负号让爱心正过来
+                return { x, y };
+            }
+
+            // 更新粒子位置（分阶段）
+            update() {
+                if (stage === 2) {
+                    this.progress += this.speed;
+                    this.progress = Math.min(this.progress, 1); // 限制进度不超过1
+                    const rotPos = this.getRotatePos();
+                    const lovePos = this.getLovePos();
+                    // 线性插值汇聚
+                    this.x = rotPos.x + (lovePos.x - rotPos.x) * this.progress;
+                    this.y = rotPos.y + (lovePos.y - rotPos.y) * this.progress;
+                } else if (stage === 3) {
+                    const lovePos = this.getLovePos();
+                    this.x = lovePos.x;
+                    this.y = lovePos.y;
+                } else {
+                    const rotPos = this.getRotatePos();
+                    this.x = rotPos.x;
+                    this.y = rotPos.y;
+                }
+            }
+
+            // 绘制粒子（圆形）
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 生成所有粒子
+        for (let i = 0; i < particleNum; i++) {
+            particles.push(new Particle());
+        }
+
+        // 切换动画阶段（复刻Python的update_stage）
+        function updateStage() {
+            if (stage === 0) {
+                // 初始文字显示2秒后进入倒计时
+                setTimeout(() => {
+                    stage = 1;
+                    document.getElementById('title').style.display = 'none';
+                    updateStage();
+                }, 2000);
+            } else if (stage === 1) {
+                // 倒计时3→2→1
+                document.getElementById('countdown').innerText = countdownNum;
+                countdownNum--;
+                if (countdownNum < 0) {
+                    stage = 2;
+                    document.getElementById('countdown').style.display = 'none';
+                    setTimeout(() => {
+                        stage = 3; // 汇聚1秒后固定爱心
+                    }, 1000);
+                } else {
+                    setTimeout(updateStage, 1000);
+                }
+            }
+        }
+
+        // 动画主循环
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布
+            // 绘制粒子
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+            requestAnimationFrame(animate); // 持续刷新动画
+        }
+
+        // 启动动画和阶段切换
+        updateStage();
+        animate();
+
+        // 手机屏幕旋转时适配大小
+        window.onresize = () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        };
+    </script>
+</body>
+</html>
